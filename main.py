@@ -1,36 +1,24 @@
 import json
-
 from ursina import *
-
-
-class Cell(Entity):
-    def __init__(self, position, is_wall=False):
-        super().__init__()
-        self.is_wall = is_wall
-        self.model = "cube" if is_wall else "quad"
-        self.texture = "brick" if is_wall else "grass"
-        self.color = color.white
-        self.scale_x = 0.5
-        self.scale_y = 0.5
-        self.scale_z = 0.5
-        self.position = position
-        if is_wall:
-            self.collider = 'box'
-        else:
-            self.position_z = -1
+from Cell import *
 
 
 class Game(Entity):
     def __init__(self):
         super().__init__()
-        # self.camera = Entity(parent=camera.ui, position=(0, 0, -5), rotation=(0, 0, 0))
+        self.player = None
         self.grid = []
-        self.create_grid_from_file(r'src\room_test1.json')  # Загрузка комнаты из JSON файла
-        # self.create_grid()
-        self.player = Entity(collider='box', model="cube", texture="player.png", scale=0.5, position=(0, 0, 0))
-        self.player_speed = 5
+        self.create_grid_from_file(r'src\rooms\start_room.json', shift=(0, 0))  # Загрузка комнаты из JSON файла
+        self.create_bridge(shift=(-30, 0), left=False, right=True, up=False, down=False)
+        self.player_init()
 
-    def create_grid_from_file(self, filename):
+    def player_init(self):
+        self.player = Entity(collider='box', model="cube", texture=r"src\Assets\player.png", scale=0.4, position=(7.5, 7.5, 0))
+        self.player.speed = 5
+        self.player.max_health = 100
+        self.player.health = 100
+
+    def create_grid_from_file(self, filename, shift=(0, 0, 0)):
         if not os.path.isfile(filename):
             print(f"Файл {filename} не найден.")
             return
@@ -41,7 +29,7 @@ class Game(Entity):
         for cell_data in data['cells']:
             position = tuple(cell_data['position'])
             is_wall = cell_data.get('is_wall', False)
-            cell = Cell(position=(position[0] * 0.5, position[1] * 0.5), is_wall=is_wall)
+            cell = Cell(position=((position[0] + shift[0]) * 0.5, (position[1] + shift[1]) * 0.5), is_wall=is_wall)
             self.grid.append(cell)
 
     def create_grid(self):
@@ -52,33 +40,128 @@ class Game(Entity):
 
     def update(self):
         if held_keys["a"]:
-            self.player.x -= self.player_speed * time.dt
+            self.player.x -= self.player.speed * time.dt
             for cell in self.grid:
                 if cell.is_wall:
                     if self.player.intersects(cell).hit:
-                        self.player.x += self.player_speed * time.dt
+                        self.player.x += self.player.speed * time.dt
         if held_keys["d"]:
-            self.player.x += self.player_speed * time.dt
+            self.player.x += self.player.speed * time.dt
             for cell in self.grid:
                 if cell.is_wall:
                     if self.player.intersects(cell).hit:
-                        self.player.x -= self.player_speed * time.dt
+                        self.player.x -= self.player.speed * time.dt
         if held_keys["s"]:
-            self.player.y -= self.player_speed * time.dt
+            self.player.y -= self.player.speed * time.dt
             for cell in self.grid:
                 if cell.is_wall:
                     if self.player.intersects(cell).hit:
-                        self.player.y += self.player_speed * time.dt
+                        self.player.y += self.player.speed * time.dt
         if held_keys["w"]:
-            self.player.y += self.player_speed * time.dt
+            self.player.y += self.player.speed * time.dt
             for cell in self.grid:
                 if cell.is_wall:
                     if self.player.intersects(cell).hit:
-                        self.player.y -= self.player_speed * time.dt
-        # self.camera.position = (self.player.x, self.player.y, self.player.z - 5)
-        # self.camera.look_at(self.player)
+                        self.player.y -= self.player.speed * time.dt
         camera.position = (self.player.x, self.player.y, self.player.z - 15)
         camera.look_at(self.player)
+
+    def create_bridge(self, shift, up=False, down=False, left=False, right=False):
+        width_start, width_stop, height_start, height_stop = 0 + shift[0], 31 + shift[0], 0 + shift[1], 31 + shift[1]
+        if left:
+            x = (width_start - width_stop) // 2 - 1
+            y = (height_stop - height_start) // 2
+            cell = Cell(position=(x * 0.5, y * 0.5), is_wall=False)
+            self.grid.append(cell)
+            for y in range((height_stop - height_start) // 2 - 1, (height_stop - height_start - 1) // 2 + 2):
+                for x in range(width_start, (width_start - width_stop) // 2 - 1):
+                    if y == (height_stop - height_start) // 2:
+                        cell = Cell(position=(x * 0.5, y * 0.5), is_wall=False)
+                    else:
+                        cell = Cell(position=(x * 0.5, y * 0.5), is_wall=True)
+                    self.grid.append(cell)
+        else:
+            x = (width_start - width_stop) // 2 - 1
+            y = (height_stop - height_start) // 2
+            cell = Cell(position=(x * 0.5, y * 0.5), is_wall=True)
+            self.grid.append(cell)
+
+        if right:
+            x = (width_start - width_stop) // 2 + 1
+            y = (height_stop - height_start) // 2
+            cell = Cell(position=(x * 0.5, y * 0.5), is_wall=False)
+            self.grid.append(cell)
+            for y in range((height_stop - height_start) // 2 - 1, (height_stop - height_start - 1) // 2 + 2):
+                for x in range((width_start - width_stop) // 2 + 2, width_stop):
+                    if y == (height_stop - height_start) // 2:
+                        cell = Cell(position=(x * 0.5, y * 0.5), is_wall=False)
+                    else:
+                        cell = Cell(position=(x * 0.5, y * 0.5), is_wall=True)
+                    self.grid.append(cell)
+        else:
+            x = (width_start - width_stop) // 2 + 1
+            y = (height_stop - height_start) // 2
+            cell = Cell(position=(x * 0.5, y * 0.5), is_wall=True)
+            self.grid.append(cell)
+        if up:
+            x = (width_start - width_stop) // 2
+            y = (height_stop - height_start) // 2 + 1
+            cell = Cell(position=(x * 0.5, y * 0.5), is_wall=False)
+            self.grid.append(cell)
+            for x in range((width_start - width_stop) // 2 - 1, (width_start - width_stop - 1) // 2 + 2):
+                for y in range((height_stop - height_start) // 2 + 2, height_stop):
+                    if x == (width_start - width_stop) // 2:
+                        cell = Cell(position=(x * 0.5, y * 0.5), is_wall=False)
+                    else:
+                        cell = Cell(position=(x * 0.5, y * 0.5), is_wall=True)
+                    self.grid.append(cell)
+        else:
+            x = (width_start - width_stop) // 2
+            y = (height_stop - height_start) // 2 + 1
+            cell = Cell(position=(x * 0.5, y * 0.5), is_wall=True)
+            self.grid.append(cell)
+        if down:
+            x = (width_start - width_stop) // 2
+            y = (height_stop - height_start) // 2 - 1
+            cell = Cell(position=(x * 0.5, y * 0.5), is_wall=False)
+            self.grid.append(cell)
+            for x in range((width_start - width_stop) // 2 - 1, (width_start - width_stop - 1) // 2 + 2):
+                for y in range(height_start, (height_stop - height_start) // 2 - 1):
+                    if x == (width_start - width_stop) // 2:
+                        cell = Cell(position=(x * 0.5, y * 0.5), is_wall=False)
+                    else:
+                        cell = Cell(position=(x * 0.5, y * 0.5), is_wall=True)
+                    self.grid.append(cell)
+        else:
+            x = (width_start - width_stop) // 2
+            y = (height_stop - height_start) // 2 - 1
+            cell = Cell(position=(x * 0.5, y * 0.5), is_wall=True)
+            self.grid.append(cell)
+        # center
+        x = (width_start - width_stop) // 2
+        y = (height_stop - height_start) // 2
+        cell = Cell(position=(x * 0.5, y * 0.5), is_wall=False)
+        self.grid.append(cell)
+        # left up center wall
+        x = (width_start - width_stop) // 2 - 1
+        y = (height_stop - height_start) // 2 + 1
+        cell = Cell(position=(x * 0.5, y * 0.5), is_wall=True)
+        self.grid.append(cell)
+        # left down center wall
+        x = (width_start - width_stop) // 2 - 1
+        y = (height_stop - height_start) // 2 - 1
+        cell = Cell(position=(x * 0.5, y * 0.5), is_wall=True)
+        self.grid.append(cell)
+        # right up center wall
+        x = (width_start - width_stop) // 2 + 1
+        y = (height_stop - height_start) // 2 + 1
+        cell = Cell(position=(x * 0.5, y * 0.5), is_wall=True)
+        self.grid.append(cell)
+        # right down center wall
+        x = (width_start - width_stop) // 2 + 1
+        y = (height_stop - height_start) // 2 - 1
+        cell = Cell(position=(x * 0.5, y * 0.5), is_wall=True)
+        self.grid.append(cell)
 
 
 if __name__ == "__main__":
